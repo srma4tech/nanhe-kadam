@@ -11,6 +11,8 @@ import { registerLearningActivities, CHARACTERS } from '../activities/activities
 import { buildLearningSummary, isMonthlyMela, selectDailyReviews } from '../revision/spaced.js';
 import { beginFamilyRecording, deleteFamilyMedia, listFamilyMedia, saveMissionPhoto } from '../family/media.js';
 import { BACKUP_STORES, createBackup, restoreBackup, validateBackup } from '../parent/data.js';
+import { DEFAULT_GEMINI_MODEL, generateReviewedPack } from '../ai/gemini.js';
+import { deleteGeminiKey, hasGeminiKey, readGeminiKey, saveGeminiKey } from '../parent/vault.js';
 
 const root = document.querySelector('#app');
 const ESCAPE = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -131,12 +133,13 @@ async function renderParent(message = '') {
   const reviewRecords = await get('progress', 'reviewMastery') ?? [];
   const summary = buildLearningSummary(reviewRecords);
   const dueToday = selectDailyReviews(reviewRecords).length;
-  frame('', `${parentHeader()}${message ? errorBox(message) : ''}<p class="small">Changes stay on this device. Storage used: ${meter.usage == null ? 'not available' : `${(meter.usage / 1048576).toFixed(1)} MB`}.</p><div class="list"><h2>Learning summary</h2><p class="small">Practiced this week: ${summary.practicedThisWeek}. Familiar topics: ${summary.strong}. Reviews ready: ${dueToday}, capped at six quick prompts.</p><button id="data-tools" class="secondary">Storage, backup, and privacy</button><h2>Weekly schedule</h2>${cards}<button id="save-schedule">Save schedule</button><h2>Speech</h2><button id="voice-test" class="secondary">Voice check and settings</button><h2>Family recordings and moments</h2><button id="media-open" class="secondary">Manage local family media</button><button id="change-pin" class="secondary">Change parent PIN</button><button id="reset-pin" class="quiet">Forgot PIN? Reset</button><button id="override-lock" class="quiet">Resume learning today</button><button id="storage-permission" class="quiet">Request persistent storage</button><h2>App update</h2><p class="small">${updateReady ? 'An update is ready.' : 'No update is waiting.'}</p><button id="apply-update" class="secondary" ${!updateReady || session ? 'disabled' : ''}>Apply update${session ? ' after session' : ''}</button><h2>Developer tools</h2><label class="inline"><input id="dev-mode" type="checkbox" ${dev ? 'checked' : ''}> Enable developer mode</label>${dev ? '<div class="split"><button id="skip-time" class="secondary">Add 5 minutes</button><button id="simulate-end" class="secondary">Simulate session end</button></div><button id="clear-time" class="quiet">Clear time skip</button>' : ''}</div>`);
+  frame('', `${parentHeader()}${message ? errorBox(message) : ''}<p class="small">Changes stay on this device. Storage used: ${meter.usage == null ? 'not available' : `${(meter.usage / 1048576).toFixed(1)} MB`}.</p><div class="list"><h2>Learning summary</h2><p class="small">Practiced this week: ${summary.practicedThisWeek}. Familiar topics: ${summary.strong}. Reviews ready: ${dueToday}, capped at six quick prompts.</p><button id="data-tools" class="secondary">Storage, backup, and privacy</button><h2>Optional Smart Packs</h2><button id="smart-packs" class="secondary">Gemini pack settings</button><h2>Weekly schedule</h2>${cards}<button id="save-schedule">Save schedule</button><h2>Speech</h2><button id="voice-test" class="secondary">Voice check and settings</button><h2>Family recordings and moments</h2><button id="media-open" class="secondary">Manage local family media</button><button id="change-pin" class="secondary">Change parent PIN</button><button id="reset-pin" class="quiet">Forgot PIN? Reset</button><button id="override-lock" class="quiet">Resume learning today</button><button id="storage-permission" class="quiet">Request persistent storage</button><h2>App update</h2><p class="small">${updateReady ? 'An update is ready.' : 'No update is waiting.'}</p><button id="apply-update" class="secondary" ${!updateReady || session ? 'disabled' : ''}>Apply update${session ? ' after session' : ''}</button><h2>Developer tools</h2><label class="inline"><input id="dev-mode" type="checkbox" ${dev ? 'checked' : ''}> Enable developer mode</label>${dev ? '<div class="split"><button id="skip-time" class="secondary">Add 5 minutes</button><button id="simulate-end" class="secondary">Simulate session end</button></div><button id="clear-time" class="quiet">Clear time skip</button>' : ''}</div>`);
   root.querySelector('#home').addEventListener('click', () => { touchParent(); renderHome(); });
   root.querySelector('#save-schedule').addEventListener('click', saveSchedule);
   root.querySelector('#voice-test').addEventListener('click', renderVoiceTest);
   root.querySelector('#media-open').addEventListener('click', renderFamilyMedia);
   root.querySelector('#data-tools').addEventListener('click', renderDataTools);
+  root.querySelector('#smart-packs').addEventListener('click', renderSmartPacks);
   root.querySelector('#change-pin').addEventListener('click', renderPinChange);
   root.querySelector('#reset-pin').addEventListener('click', renderReset);
   root.querySelector('#override-lock').addEventListener('click', async () => { await overrideLock({ parentUnlocked: isParentUnlocked() }); session = await resumeSession(); renderParent('Today’s lock was lifted.'); });
@@ -218,6 +221,43 @@ async function renderDataTools(message = '') {
       renderDataTools(`Backup restored. ${result.restoredRecords} records were applied.`);
     } catch (error) { logError('Backup restore failed', error); renderDataTools('The backup could not be restored. No raw file or device error is shown.'); }
   });
+}
+async function renderSmartPacks(message = '', draft = null) {
+  if (!isParentUnlocked()) return renderHome();
+  const config = await get('settings', 'smartPacks') ?? { enabled: false, model: DEFAULT_GEMINI_MODEL };
+  const keySaved = await hasGeminiKey({ parentUnlocked: isParentUnlocked() });
+  const preview = draft ? `<section class="pack-preview"><h2>Generated draft · review both languages</h2><p><strong>${ESCAPE(draft.title.en)}</strong><br>${ESCAPE(draft.title.hi)}</p><p>${ESCAPE(draft.question.en)}<br>${ESCAPE(draft.question.hi)}</p><ol>${draft.options.map((option) => `<li>${ESCAPE(option.en)} / ${ESCAPE(option.hi)}</li>`).join('')}</ol><p>Hint: ${ESCAPE(draft.hint.en)} / ${ESCAPE(draft.hint.hi)}</p><p>Mission: ${ESCAPE(draft.mission.en)} / ${ESCAPE(draft.mission.hi)}</p><p class="small">The automated safety review passed. Read this draft yourself before it appears in a child session.</p><button id="pack-approve">Approve for local learning</button><button id="pack-discard" class="quiet">Discard draft</button></section>` : '';
+  frame('Optional Smart Packs', `${parentHeader()}${message ? errorBox(message) : ''}<p class="small">This optional tool sends only a fixed topic prompt and generated pack text to Google. It never sends a child's name, notes, photos, or recordings. Requests need internet access and may use your API quota.</p><p class="small">A key saved here is encrypted at rest. Since this app runs in a browser, it can still be read at runtime; Google recommends server-side keys for production.</p><p class="small">Saved API key: ${keySaved ? 'encrypted on this device' : 'none'}</p><form id="gemini-key-form" class="stack"><label>Paste or replace your Gemini API key<input name="key" type="password" autocomplete="off" maxlength="512" placeholder="Key stays masked"></label><button type="submit">Encrypt and save key</button></form>${keySaved ? '<button id="gemini-key-delete" class="quiet">Remove saved key</button>' : ''}<label class="inline"><input id="smart-enabled" type="checkbox" ${config.enabled && keySaved ? 'checked' : ''}> Enable Smart Packs (off by default)</label><label>Model ID<input id="smart-model" value="${ESCAPE(config.model || DEFAULT_GEMINI_MODEL)}" maxlength="80"></label><label>Topic<select id="smart-theme"><option value="language">Language and sounds</option><option value="numbers">Counting</option><option value="nature">Nature</option><option value="shapes">Shapes</option><option value="feelings">Feelings</option><option value="kindness">Kindness</option></select></label><button id="pack-generate" ${!config.enabled || !keySaved ? 'disabled' : ''}>Generate and safety-check draft</button><div id="pack-preview">${preview}</div>`);
+  setState({ screen: 'parent' });
+  root.querySelector('#home').addEventListener('click', renderParent);
+  root.querySelector('#gemini-key-form').addEventListener('submit', async (event) => {
+    event.preventDefault(); const key = new FormData(event.currentTarget).get('key');
+    try { await saveGeminiKey(key, { parentUnlocked: isParentUnlocked() }); renderSmartPacks('API key encrypted on this device.'); }
+    catch (error) { logError('Gemini key encryption failed', error); renderSmartPacks('The key could not be saved. Check it and try again.'); }
+  });
+  root.querySelector('#gemini-key-delete')?.addEventListener('click', async () => {
+    if (!window.confirm('Remove the encrypted key and turn off Smart Packs?')) return;
+    try { await deleteGeminiKey({ parentUnlocked: isParentUnlocked() }); await put('settings', 'smartPacks', { ...config, enabled: false }); renderSmartPacks('Saved API key removed.'); }
+    catch (error) { logError('Gemini key removal failed', error); renderSmartPacks('The saved key could not be removed.'); }
+  });
+  root.querySelector('#smart-enabled').addEventListener('change', async (event) => {
+    if (event.target.checked && !keySaved) return renderSmartPacks('Save an API key before enabling this optional feature.');
+    await put('settings', 'smartPacks', { enabled: event.target.checked, model: root.querySelector('#smart-model').value.trim() || DEFAULT_GEMINI_MODEL });
+    renderSmartPacks(event.target.checked ? 'Smart Packs enabled for parent use.' : 'Smart Packs disabled.');
+  });
+  root.querySelector('#smart-model').addEventListener('change', async (event) => { await put('settings', 'smartPacks', { ...config, model: event.target.value.trim() || DEFAULT_GEMINI_MODEL }); });
+  root.querySelector('#pack-generate').addEventListener('click', async () => {
+    if (!config.enabled || !keySaved) return;
+    const button = root.querySelector('#pack-generate'); button.disabled = true; button.textContent = 'Creating a draft…';
+    try { const apiKey = await readGeminiKey({ parentUnlocked: isParentUnlocked() }); const generated = await generateReviewedPack({ apiKey, model: root.querySelector('#smart-model').value.trim(), themeId: root.querySelector('#smart-theme').value }); renderSmartPacks('Safety review passed. Please review and approve the draft.', generated); }
+    catch (error) { logError('Gemini pack generation failed', error); renderSmartPacks(error?.name === 'SmartPackRejectedError' ? 'The automated review did not approve this draft. Nothing was saved.' : 'A draft could not be created. Check the connection, key, and model, then try again.'); }
+  });
+  root.querySelector('#pack-approve')?.addEventListener('click', async () => {
+    const approved = await get('settings', 'approvedSmartPacks') ?? [];
+    await put('settings', 'approvedSmartPacks', [{ ...draft, approved: true }, ...approved].slice(0, 20));
+    renderSmartPacks('Pack approved and saved locally for learning sessions.');
+  });
+  root.querySelector('#pack-discard')?.addEventListener('click', () => renderSmartPacks('Draft discarded without saving.'));
 }
 async function saveSchedule() {
   const schedule = await get('schedule', 'week') ?? defaultSchedule();

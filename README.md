@@ -13,6 +13,7 @@ The child-facing shell works offline after its first successful load. There are 
 - `src/revision/` — spaced review planner and local progress summaries
 - `src/parent/` — PIN setup, verification, throttling, reset, dashboard, and backup validation
 - `src/family/` — parent-managed local audio recording and resized mission photos
+- `src/ai/` — optional fixed-scope Gemini pack generation and safety validation
 - `src/speech/` — phrase-based on-device speech and voice selection helpers
 - `src/ui/` — child and parent screens and local styles
 - `src/activities/` — bilingual activity modules and child-safe retry interactions
@@ -23,6 +24,8 @@ The child-facing shell works offline after its first successful load. There are 
 - `docs/` — decisions, reconnaissance, and verification records
 
 Parent backups are local JSON downloads. They omit PIN hashes, the encrypted vault, family recordings, and photos. Restore validates the file first and merges its records without removing records that are absent from the backup.
+
+Smart Packs are optional, parent-triggered online requests. The parent supplies and stores their own encrypted-at-rest key; the browser must decrypt it to make a request, so browser-side storage cannot protect it from someone with access to that browser profile. Google recommends keeping production keys server-side. No backend is included in this static PWA.
 
 Validate curriculum structure and language coverage with `node scripts/validate-content.mjs`.
 

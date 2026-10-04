@@ -20,6 +20,11 @@ const DATA = {
 };
 
 export function createActivityState(data) { return { data, misses: 0, hint: false, complete: false }; }
+export function smartPackToActivity(pack) {
+  const answer = pack?.options?.findIndex((option) => option.id === pack.answerId);
+  if (!pack?.approved || answer < 0) return null;
+  return { conceptId: pack.id, kind: 'matching', en: pack.question.en, hi: pack.question.hi, choices: pack.options.map((option) => [option.id, option.en, option.hi]), answer, hintEn: pack.hint.en, hintHi: pack.hint.hi };
+}
 export function answerActivity(state, choice) {
   if (state.complete) return state;
   if (choice === state.data.answer) return { ...state, complete: true };
@@ -33,6 +38,12 @@ export function registerLearningActivities() {
       let activeData = data;
       let reviewQueue = [];
       let reviewIndex = 0;
+      if (stepId === 'theme') {
+        const feature = await get('settings', 'smartPacks');
+        const approved = feature?.enabled ? await get('settings', 'approvedSmartPacks') ?? [] : [];
+        const localPack = approved.find((pack) => pack.approved);
+        if (localPack) activeData = smartPackToActivity(localPack) ?? data;
+      }
       if (stepId === 'revision') {
         const stored = await get('progress', 'reviewMastery') ?? [];
         reviewQueue = selectDailyReviews(stored, Date.now(), 'matching').map((item) => ({ item, data: Object.values(DATA).find((candidate) => candidate.conceptId === item.id) })).filter((entry) => entry.data);

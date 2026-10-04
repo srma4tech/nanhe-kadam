@@ -59,3 +59,10 @@
 - Added JSON backup export/restore validation; backups omit parent PIN/hash records, encrypted vault, recordings, and photos.
 - Restore validates the full file before applying a non-destructive merge that leaves records absent from the backup untouched.
 - Added tests for secret/media exclusion, malformed backup rejection, and no-write-on-invalid restore.
+
+## Phase 8 — Optional Smart Packs
+
+- Added parent-only AES-GCM key encryption in the local vault with a nonextractable device key, masked key input, replace, and delete controls.
+- Added an opt-in Gemini REST client using the documented API-key header, fixed-topic prompts, strict bilingual pack validation, and a separate automated safety pass.
+- Added a parent review/approval gate before saving packs locally; approved content runs offline and child activities make no API calls.
+- Added CSP allow-list for the Gemini endpoint and mocked vault/request/validation tests. Browser CORS and real-key checks remain pending.

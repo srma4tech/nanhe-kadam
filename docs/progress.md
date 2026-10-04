@@ -11,6 +11,6 @@ This log tracks implementation separately from hands-on checks that require brow
 | 4 — Activities and characters | Implemented; device checks pending | `b9a8283` | 34 tests pass including retry state; syntax and curriculum checks pass | Touch, screen reader, visual and child-comprehension checks require target devices |
 | 5 — Spaced repetition and rhythm | Implemented; family pilot pending | `e6ea2d9` | 34 tests; validator passes; planner tests cover intervals, queue cap, weak/theme/easy ordering, summaries | Actual pacing and usefulness need a family pilot |
 | 6 — Family recordings and media | Implemented; hardware checks pending | `8d4e340` | 41 tests; media mocks cover recording, MIME fallback, microphone failure, and photo resize | Verify real microphone/camera, offline media, storage pressure, and deletion on devices |
-| 7 — Parent dashboard and data tools | Implemented; browser file UX pending | Pending | Backup tests cover exclusion, malformed imports, and no-write-on-invalid restore | Browser download/file picker and device persistence remain unverified |
-| 8 — Smart Packs | Not started | — | — | — |
+| 7 — Parent dashboard and data tools | Implemented; browser file UX pending | `fb19554` | 46 tests cover exclusion, malformed imports, and no-write-on-invalid restore | Browser download/file picker and device persistence remain unverified |
+| 8 — Smart Packs | Implemented; live API/CORS pending | Pending | Mock crypto, REST shape, pack checks, and safety-review tests pass | Real CORS, key, API, billing, and device behavior; browser key exposure risk documented |
 | 9 — Accessibility and hardening | Not started | — | — | — |
