@@ -66,3 +66,10 @@
 - Added an opt-in Gemini REST client using the documented API-key header, fixed-topic prompts, strict bilingual pack validation, and a separate automated safety pass.
 - Added a parent review/approval gate before saving packs locally; approved content runs offline and child activities make no API calls.
 - Added CSP allow-list for the Gemini endpoint and mocked vault/request/validation tests. Browser CORS and real-key checks remain pending.
+
+## Phase 9 — Accessibility and hardening
+
+- Added keyboard skip navigation, visible focus, screen-heading focus management, keyboard parent hold, activity language selection, and 64px quiet/voice/media controls.
+- Escaped restored/dynamic content before HTML insertion, handled all unhandled promise rejections with generic UI feedback, and stopped recording timers on background.
+- Bumped the service-worker cache and added the missing revision module to the offline shell; cache write failures no longer create unhandled promises.
+- Added an automated service-worker import-graph check and a consolidated real-device/two-week pilot checklist.

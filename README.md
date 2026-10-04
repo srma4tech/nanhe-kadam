@@ -1,10 +1,10 @@
 ﻿# Nanhe Kadam
 
-Nanhe Kadam is a bilingual Hindi and English learning companion for young children. Phases 1–7 provide an installable offline PWA shell, local data and parent controls, on-device speech, a four-week bilingual curriculum, gentle activities, spaced review, optional parent-managed local media, and validated local backups.
+Nanhe Kadam is a bilingual Hindi and English learning companion for young children. Phases 1–9 provide an installable offline PWA shell, local data and parent controls, on-device speech, a four-week bilingual curriculum, gentle activities, spaced review, optional parent-managed media, validated local backups, and optional parent-approved Smart Packs.
 
 ## Privacy promise
 
-The child-facing shell works offline after its first successful load. There are no accounts, analytics, tracking, third-party scripts or SDKs, remote fonts, CDN links, or external links. Do not add personal or family information, photos, credentials, API keys, or secrets to this public repository. Use neutral names throughout. Companion settings are stored only on the device.
+Child activities work offline after the first successful load. There are no accounts, analytics, tracking, third-party scripts or SDKs, remote fonts, CDN links, or external links. The only external connection is an explicit parent-triggered Gemini Smart Pack request when enabled. Do not add personal or family information, photos, credentials, API keys, or secrets to this public repository. Use neutral names throughout. Companion settings are stored only on the device.
 
 ## Folder map
 
@@ -20,12 +20,14 @@ The child-facing shell works offline after its first successful load. There are 
 - `content/` — day-plan schema and four-week bilingual curriculum
 - `assets/` — generated local PWA icons
 - `scripts/` — local icon generation and content validation scripts
-- `tests/` — Node built-in tests for pure session, schedule, clock, and PIN logic
+- `tests/` — Node built-in tests for sessions, content, speech, media, backups, and Smart Packs
 - `docs/` — decisions, reconnaissance, and verification records
 
 Parent backups are local JSON downloads. They omit PIN hashes, the encrypted vault, family recordings, and photos. Restore validates the file first and merges its records without removing records that are absent from the backup.
 
 Smart Packs are optional, parent-triggered online requests. The parent supplies and stores their own encrypted-at-rest key; the browser must decrypt it to make a request, so browser-side storage cannot protect it from someone with access to that browser profile. Google recommends keeping production keys server-side. No backend is included in this static PWA.
+
+Before using the app with a family, work through docs/device-test-checklist.md. Real-device, bilingual, live API/CORS, and two-week pilot checks are still pending.
 
 Validate curriculum structure and language coverage with `node scripts/validate-content.mjs`.
 

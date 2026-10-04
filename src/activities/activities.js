@@ -1,5 +1,5 @@
 import { registerStepModule } from '../session/engine.js';
-import { createSpeechPlayer } from '../speech/speech.js';
+import { createSpeechPlayer, pickVoice, waitForVoices } from '../speech/speech.js';
 import { get, put } from '../core/storage.js';
 import { recordRecall, selectDailyReviews } from '../revision/spaced.js';
 
@@ -19,10 +19,14 @@ const DATA = {
   story: { conceptId: 'plant-order', kind: 'before-after', en: 'What comes before a plant grows?', hi: 'पौधे के उगने से पहले क्या होता है?', choices: [['seed','A seed','बीज'],['fruit','Fruit','फल'],['shade','Shade','छाया']], answer: 0, hintEn: 'Think of something small in the soil.', hintHi: 'मिट्टी में रखी छोटी चीज़ सोचो।' }
 };
 
+function escapeText(value) { return String(value ?? '').replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]); }
 export function createActivityState(data) { return { data, misses: 0, hint: false, complete: false }; }
 export function smartPackToActivity(pack) {
+  if (!pack?.approved || !Array.isArray(pack.options) || !pack.question || !pack.hint) return null;
+  for (const pair of [pack.question, pack.hint, ...pack.options]) if (!pair || typeof pair !== 'object' || !['hi', 'en'].every((lang) => typeof pair[lang] === 'string' && pair[lang].length <= 180)) return null;
+  if (pack.options.some((option) => typeof option.id !== 'string')) return null;
   const answer = pack?.options?.findIndex((option) => option.id === pack.answerId);
-  if (!pack?.approved || answer < 0) return null;
+  if (answer < 0) return null;
   return { conceptId: pack.id, kind: 'matching', en: pack.question.en, hi: pack.question.hi, choices: pack.options.map((option) => [option.id, option.en, option.hi]), answer, hintEn: pack.hint.en, hintHi: pack.hint.hi };
 }
 export function answerActivity(state, choice) {
@@ -40,8 +44,9 @@ export function registerLearningActivities() {
       let reviewIndex = 0;
       if (stepId === 'theme') {
         const feature = await get('settings', 'smartPacks');
-        const approved = feature?.enabled ? await get('settings', 'approvedSmartPacks') ?? [] : [];
-        const localPack = approved.find((pack) => pack.approved);
+        const approvedData = feature?.enabled === true ? await get('settings', 'approvedSmartPacks') : [];
+        const approved = Array.isArray(approvedData) ? approvedData : [];
+        const localPack = approved.find((pack) => pack?.approved === true);
         if (localPack) activeData = smartPackToActivity(localPack) ?? data;
       }
       if (stepId === 'revision') {
@@ -51,17 +56,17 @@ export function registerLearningActivities() {
       }
       let state = createActivityState(activeData);
       let recorded = false;
-      const lang = document.documentElement.lang === 'hi' ? 'hi' : 'en';
+      const lang = (await get('settings', 'activityLanguage')) === 'hi' ? 'hi' : 'en';
       const render = () => {
-        const title = state.complete ? (lang === 'hi' ? 'बहुत अच्छा! हर कोशिश प्यारी है।' : 'Lovely trying! Every try is a good one.') : activeData[lang];
+        const title = escapeText(state.complete ? (lang === 'hi' ? 'बहुत अच्छा! हर कोशिश प्यारी है।' : 'Lovely trying! Every try is a good one.') : activeData[lang]);
         const choiceText = state.complete ? '' : activeData.choices.map(([_id, en, hi], index) => {
-          const text = lang === 'hi' ? hi : en;
+          const text = escapeText(lang === 'hi' ? hi : en);
           return `<button type="button" data-choice="${index}" aria-label="${text}">${text}</button>`;
         }).join('');
-        const hint = state.hint ? `<p class="gentle-hint">${lang === 'hi' ? activeData.hintHi : activeData.hintEn}</p>` : '';
+        const hint = state.hint ? `<p class="gentle-hint">${escapeText(lang === 'hi' ? activeData.hintHi : activeData.hintEn)}</p>` : '';
         const character = CHARACTERS[(step.id.length + step.minutes) % CHARACTERS.length];
-        container.innerHTML = `<article class="activity-card" aria-live="polite"><img class="character ${state.complete ? 'happy' : state.misses ? 'gentle' : 'idle'}" src="${character.image}" alt=""><h2>${title}</h2><p class="small">${state.complete ? '' : activeData.kind === 'sound' ? 'Tap a choice to hear it spoken.' : stepId === 'revision' && reviewQueue.length ? `A little review ${reviewIndex + 1} of ${reviewQueue.length}` : ''}</p>${hint}<div class="activity-choices">${choiceText}</div></article>`;
-        container.querySelectorAll('[data-choice]').forEach((button) => button.addEventListener('click', async () => { const index = Number(button.dataset.choice); if (activeData.kind === 'sound' && globalThis.speechSynthesis && globalThis.SpeechSynthesisUtterance) { const voice = createSpeechPlayer(globalThis.speechSynthesis, globalThis.SpeechSynthesisUtterance); const choice = activeData.choices[index]; voice.speak(lang === 'hi' ? choice[2] : choice[1], { lang: lang === 'hi' ? 'hi-IN' : 'en-IN' }).catch((error) => console.error('[Nanhe Kadam] Activity speech failed', error)); } state = answerActivity(state, index); if (state.complete && !recorded) { recorded = true; try { const records = await get('progress', 'reviewMastery') ?? []; const prior = records.find((item) => item.id === activeData.conceptId); const updated = recordRecall(prior, state.misses === 0); const next = records.filter((item) => item.id !== activeData.conceptId); next.push({ ...updated, id: activeData.conceptId, theme: activeData.kind }); await put('progress', 'reviewMastery', next); } catch (error) { console.error('[Nanhe Kadam] Learning progress could not be saved', error); } if (stepId === 'revision' && reviewQueue[reviewIndex + 1]) { activeData = reviewQueue[++reviewIndex].data; state = createActivityState(activeData); recorded = false; } } render(); }));
+        container.innerHTML = `<article class="activity-card" lang="${lang === 'hi' ? 'hi' : 'en'}" aria-live="polite"><img class="character ${state.complete ? 'happy' : state.misses ? 'gentle' : 'idle'}" src="${character.image}" alt=""><h2>${title}</h2><p class="small">${state.complete ? '' : activeData.kind === 'sound' ? 'Tap a choice to hear it spoken.' : stepId === 'revision' && reviewQueue.length ? `A little review ${reviewIndex + 1} of ${reviewQueue.length}` : ''}</p>${hint}<div class="activity-choices">${choiceText}</div></article>`;
+        container.querySelectorAll('[data-choice]').forEach((button) => button.addEventListener('click', async () => { const index = Number(button.dataset.choice); if (activeData.kind === 'sound' && globalThis.speechSynthesis && globalThis.SpeechSynthesisUtterance) { try { const settings = await get('settings', 'speech') ?? { rate: 0.68, pitch: 1.04 }; const voices = await waitForVoices(globalThis.speechSynthesis); const voiceChoice = voices.find((voice) => voice.voiceURI === settings.voiceURI) ?? pickVoice(voices, settings.lang ?? (lang === 'hi' ? 'hi-IN' : 'en-IN')); const player = createSpeechPlayer(globalThis.speechSynthesis, globalThis.SpeechSynthesisUtterance); const choice = activeData.choices[index]; await player.speak(lang === 'hi' ? choice[2] : choice[1], { lang: settings.lang ?? (lang === 'hi' ? 'hi-IN' : 'en-IN'), voice: voiceChoice, rate: settings.rate ?? 0.68, pitch: settings.pitch ?? 1.04 }); } catch (error) { console.error('[Nanhe Kadam] Activity speech failed', error); } } state = answerActivity(state, index); if (state.complete && !recorded) { recorded = true; try { const records = await get('progress', 'reviewMastery') ?? []; const prior = records.find((item) => item.id === activeData.conceptId); const updated = recordRecall(prior, state.misses === 0); const next = records.filter((item) => item.id !== activeData.conceptId); next.push({ ...updated, id: activeData.conceptId, theme: activeData.kind }); await put('progress', 'reviewMastery', next); } catch (error) { console.error('[Nanhe Kadam] Learning progress could not be saved', error); } if (stepId === 'revision' && reviewQueue[reviewIndex + 1]) { activeData = reviewQueue[++reviewIndex].data; state = createActivityState(activeData); recorded = false; } } render(); }));
       };
       render();
     }));

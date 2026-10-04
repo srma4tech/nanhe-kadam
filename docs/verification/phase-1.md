@@ -20,7 +20,7 @@ Date: 2026-10-04
 
 Real-device checks must be performed over HTTPS or localhost so Web Crypto and service workers are available.
 
-Additional checks: all 18 JavaScript files pass `node --check`; the manifest parses as JSON; all three generated icons have valid PNG headers and requested dimensions (192x192, 512x512, and maskable 512x512). A local static server returned HTTP 200 for the HTML, manifest, service worker, all modules/styles, and all icons.
+Additional checks: all JavaScript files pass `node --check`; the manifest parses as JSON; all three generated icons have valid PNG headers and requested dimensions (192x192, 512x512, and maskable 512x512). A local static server returned HTTP 200 for the HTML, manifest, service worker, all modules/styles, and all icons.
 
 
 Workspace note: current branch is `master`. Browser and Android hardware were unavailable, so device behavior remains unverified.
