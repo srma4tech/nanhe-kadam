@@ -2,6 +2,8 @@
 
 Nanhe Kadam is a bilingual Hindi and English learning companion for young children. Phases 1–9 provide an installable offline PWA shell, local data and parent controls, on-device speech, a four-week bilingual curriculum, gentle activities, spaced review, optional parent-managed media, validated local backups, and optional parent-approved Smart Packs.
 
+Live app: [https://srma4tech.github.io/nanhe-kadam/](https://srma4tech.github.io/nanhe-kadam/)
+
 ## Privacy promise
 
 Child activities work offline after the first successful load. There are no accounts, analytics, tracking, third-party scripts or SDKs, remote fonts, CDN links, or external links. The only external connection is an explicit parent-triggered Gemini Smart Pack request when enabled. Do not add personal or family information, photos, credentials, API keys, or secrets to this public repository. Use neutral names throughout. Companion settings are stored only on the device.
@@ -47,7 +49,7 @@ Use a secure origin when checking the PWA shell, PIN, or offline behavior:
 
 - On the computer running the static server, open `http://localhost` and include the port printed by the server if needed.
 - For an Android device connected over USB, run `adb reverse tcp:3000 tcp:3000` on the computer, then open `http://localhost:3000` on the phone. Replace `3000` if the development server uses another port.
-- For a deployed copy, open its HTTPS GitHub Pages address.
+- For the deployed copy, open [https://srma4tech.github.io/nanhe-kadam/](https://srma4tech.github.io/nanhe-kadam/).
 
 Real-device checks should use HTTPS or localhost so Web Crypto and service workers are available.
 
@@ -61,12 +63,8 @@ The script uses only Node built-ins and writes the three original PNG icons in `
 
 ## Deploying
 
-GitHub Pages cannot be configured from this workspace. To configure it manually:
+GitHub Actions verifies each pull request and push to `master` by running the unit tests and bilingual curriculum validator. A successful push to `master` deploys the static app to GitHub Pages. Pull requests run the checks but do not deploy.
 
-1. Push this repository to GitHub and ensure the intended default branch is `main`.
-2. Open the repository's **Settings** tab.
-3. In **Pages**, choose **Deploy from a branch** as the source.
-4. Choose `main` and the repository root (`/`) as the folder, then save.
-5. Confirm the Pages deployment completes in the repository's Actions/Pages status.
+For the initial setup, open the repository's **Settings → Pages** and set **Build and deployment → Source** to **GitHub Actions**. After that, merges or pushes to `master` publish automatically. The live site is [https://srma4tech.github.io/nanhe-kadam/](https://srma4tech.github.io/nanhe-kadam/).
 
 Keep the repository public without personal or family information, as required by the project privacy rule.
