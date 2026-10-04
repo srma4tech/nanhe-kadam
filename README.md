@@ -22,15 +22,21 @@ The child-facing shell works offline after its first successful load. There are 
 
 Serve this folder from a local static HTTP server. Service workers and Web Crypto require a secure context; localhost is treated as secure. No build step or installed package is required. For a basic static server already available on your machine, run it from this directory and open its local address.
 
-## Tests
+## Testing
 
 Run the dependency-free unit tests from the repository root:
 
 ```sh
-node --test tests/*.test.js
+node --test
 ```
 
-The equivalent `node --test` also discovers the tests. On the Windows Node v24.18.0 environment used for Phase 1, `node --test tests/` fails because Node resolves the directory argument as a module path; use the wildcard command above.
+Use a secure origin when checking the PWA shell, PIN, or offline behavior:
+
+- On the computer running the static server, open `http://localhost` and include the port printed by the server if needed.
+- For an Android device connected over USB, run `adb reverse tcp:3000 tcp:3000` on the computer, then open `http://localhost:3000` on the phone. Replace `3000` if the development server uses another port.
+- For a deployed copy, open its HTTPS GitHub Pages address.
+
+Real-device checks should use HTTPS or localhost so Web Crypto and service workers are available.
 
 ## Regenerate icons
 

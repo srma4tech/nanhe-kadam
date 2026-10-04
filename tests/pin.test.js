@@ -1,6 +1,6 @@
 ﻿import test from 'node:test';
 import assert from 'node:assert/strict';
-import { BACKOFF_MS, constantTimeEqual, isValidPin, nextThrottle } from '../src/parent/pin.js';
+import { BACKOFF_MS, constantTimeEqual, EnvironmentError, isValidPin, nextThrottle, requireCryptoSubtle } from '../src/parent/pin.js';
 
 test('PIN accepts only 4 to 6 decimal digits', () => {
   assert.equal(isValidPin('1234'), true); assert.equal(isValidPin('123456'), true);
@@ -19,3 +19,8 @@ test('hash equality checks all bytes and rejects different lengths', () => {
   assert.equal(constantTimeEqual(new Uint8Array([1, 2]), new Uint8Array([1, 3])), false);
   assert.equal(constantTimeEqual(new Uint8Array([1]), new Uint8Array([1, 0])), false);
 });
+test('missing Web Crypto throws the typed environment error', () => {
+  assert.throws(() => requireCryptoSubtle(null), EnvironmentError);
+  assert.throws(() => requireCryptoSubtle({}), { name: 'EnvironmentError' });
+});
+

@@ -1,5 +1,6 @@
 ﻿import { get, put, del, estimateStorage } from '../core/storage.js';
 import { now, setDevOffset, clearDevOffset } from '../core/clock.js';
+import { checkEnvironment } from '../core/environment.js';
 import { getState, setState } from '../core/state.js';
 import { hasPin, setPin, verifyPin, changePin, resetPin, isParentUnlocked, touchParent, lockParent, requestPersistentStorageForParent, PARENT_IDLE_MS } from '../parent/pin.js';
 import { defaultSchedule, WEEKDAYS, isSessionAvailable, dayPlan, isLightDay } from '../session/schedule.js';
@@ -13,6 +14,7 @@ let session = null; let selectedEmoji = '🌱'; let updateReady = false;
 const EMOJIS = ['🌱', '🐦', '🐰', '🐢'];
 function frame(title, body, cls = '') { setState({ screen: title === 'Parent area' || title === 'Change parent PIN' || title === 'Reset parent PIN' ? 'parent' : title === 'Parent setup' ? 'pin' : title === 'Choose a companion' ? 'setup' : title ? 'child' : getState().screen }); root.innerHTML = `<section class="screen ${cls}"><div class="brand"><img src="./assets/icon-192.png" alt=""><span>Nanhe Kadam</span></div>${title ? `<h1 class="title">${title}</h1>` : ''}${body}</section>`; }
 function errorBox(message) { return `<p class="error" role="alert">${ESCAPE(message)}</p>`; }
+function logError(context, error) { console.error(`[Nanhe Kadam] ${context}`, error); }
 function attachParentHold() {
   const target = document.createElement('button'); target.className = 'parent-corner'; target.setAttribute('aria-label', 'Parent area'); target.title = 'Hold for parent area'; root.append(target);
   const begin = (event) => { event.preventDefault(); clearTimeout(parentTouchTimer); parentTouchTimer = setTimeout(() => { lockParent(); renderPin(); }, 3000); };
@@ -20,8 +22,10 @@ function attachParentHold() {
   target.addEventListener('pointerdown', begin); ['pointerup', 'pointercancel', 'pointerleave'].forEach((name) => target.addEventListener(name, cancel));
 }
 function childFrame(title, content) { frame(title, content, 'center'); attachParentHold(); }
-function installVisibilityLock() { window.addEventListener('unhandledrejection', (event) => { if (event.reason?.name === 'StorageQuotaError') { event.preventDefault(); quotaNotice = true; if (getState().screen === 'parent' && isParentUnlocked()) renderParent('Device storage is full. Please free space and try again.'); } }); root.addEventListener('pointerdown', (event) => { if (getState().screen === 'parent') { if (isParentUnlocked()) touchParent(); else { event.stopImmediatePropagation(); renderHome(); } } }, true); root.addEventListener('keydown', () => { if (getState().screen === 'parent' && isParentUnlocked()) touchParent(); }, true); document.addEventListener('visibilitychange', () => { if (document.hidden) { lockParent(); if (getState().screen === 'parent') renderHome(); } }); setInterval(() => { if (getState().screen === 'parent' && !isParentUnlocked()) renderHome(); }, 5000); }
+function installVisibilityLock() { window.addEventListener('unhandledrejection', (event) => { if (event.reason?.name === 'StorageQuotaError') { event.preventDefault(); console.error('[Nanhe Kadam] Storage quota error', event.reason); quotaNotice = true; if (getState().screen === 'parent' && isParentUnlocked()) renderParent('Device storage is full. Please free space and try again.'); } }); root.addEventListener('pointerdown', (event) => { if (getState().screen === 'parent') { if (isParentUnlocked()) touchParent(); else { event.stopImmediatePropagation(); renderHome(); } } }, true); root.addEventListener('keydown', () => { if (getState().screen === 'parent' && isParentUnlocked()) touchParent(); }, true); document.addEventListener('visibilitychange', () => { if (document.hidden) { lockParent(); if (getState().screen === 'parent') renderHome(); } }); setInterval(() => { if (getState().screen === 'parent' && !isParentUnlocked()) renderHome(); }, 5000); }
 async function init() {
+  const environment = checkEnvironment(window);
+  if (!environment.ok) return renderEnvironmentGate();
   try {
     registration = 'serviceWorker' in navigator ? await navigator.serviceWorker.register('./sw.js') : null;
     if (registration) {
@@ -35,8 +39,12 @@ async function init() {
     await ensureSchedule(); renderHome();
   } catch (error) { showFatal(error); }
 }
+function renderEnvironmentGate() {
+  frame('Parent setup needs a secure connection', `<p class="sub">Nanhe Kadam needs HTTPS or localhost to protect the parent PIN and work offline. Choose one of these options:</p><ol class="setup-options"><li>On the same computer running the app, open <code>http://localhost</code>. Add the server port if one is shown.</li><li>Open the HTTPS GitHub Pages address for this app.</li><li>On Android, connect the phone to the computer and run <code>adb reverse tcp:3000 tcp:3000</code>. Then open <code>http://localhost:3000</code> on the phone. Use your server's port if it differs.</li></ol><p class="small">PIN-protected learning is paused here. Reopen the app from one of these secure addresses.</p>`, 'environment-gate');
+  setState({ screen: 'environment' });
+}
 async function ensureSchedule() { if (!await get('schedule', 'week')) await put('schedule', 'week', defaultSchedule()); }
-function showFatal(error) { frame('A little pause', `<p class="sub">The app could not open its local information. Please ask a parent to reopen it.</p>${error?.name === 'StorageQuotaError' ? errorBox('Device storage is full. A parent can free space and try again.') : ''}`, 'center'); }
+function showFatal(error) { logError('App could not open local information', error); frame('A little pause', `<p class="sub">The app could not open its local information. Please ask a parent to reopen it.</p>${error?.name === 'StorageQuotaError' ? errorBox('Device storage is full. A parent can free space and try again.') : errorBox('Something went wrong. Please try again or ask a parent for help.')}`, 'center'); }
 async function renderPin(setup = false, message = '') {
   const fields = setup ? `<label>Choose a parent PIN<input name="pin" inputmode="numeric" pattern="[0-9]{4,6}" minlength="4" maxlength="6" autocomplete="new-password" required></label><label>Enter it again<input name="confirm" inputmode="numeric" pattern="[0-9]{4,6}" minlength="4" maxlength="6" autocomplete="new-password" required></label>` : `<label>Parent PIN<input name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,6}" minlength="4" maxlength="6" autocomplete="current-password" required></label>`;
   frame(setup ? 'Parent setup' : 'Parent area', `<p class="sub">${setup ? 'Choose a 4 to 6 digit PIN to protect parent settings.' : 'Enter your PIN to continue.'}</p>${message ? errorBox(message) : ''}<form id="pin-form" class="stack">${fields}<button type="submit">${setup ? 'Set parent PIN' : 'Continue'}</button></form>${!setup ? '<button type="button" id="forgot-pin" class="quiet">Forgot PIN? Reset</button>' : ''}`, 'center');
@@ -48,7 +56,7 @@ async function renderPin(setup = false, message = '') {
       if (setup) { await setPin(pin, values.get('confirm')); return renderCompanion(); }
       const result = await verifyPin(pin); if (!result.ok) return renderPin(false, result.lockedFor ? `Please wait ${Math.ceil(result.lockedFor / 1000)} seconds, then try again.` : result.error ?? 'That PIN did not match.');
       const saved = await get('settings', 'companion'); if (!saved) return renderCompanion(true); companion = saved; renderParent();
-    } catch (error) { renderPin(setup, error.message); }
+    } catch (error) { logError('PIN setup or verification failed', error); renderPin(setup, setup ? 'We could not set up the PIN. Please try again.' : 'We could not verify the PIN. Please try again.'); }
   });
 }
 function renderCompanion(fromParent = false) {
@@ -131,14 +139,16 @@ async function saveSchedule() {
 }
 function renderPinChange(message = '') {
   frame('Change parent PIN', `${message ? errorBox(message) : ''}<form id="change-form" class="stack"><label>Current PIN<input name="old" type="password" inputmode="numeric" required></label><label>New PIN<input name="next" type="password" inputmode="numeric" pattern="[0-9]{4,6}" required></label><label>Confirm new PIN<input name="confirm" type="password" inputmode="numeric" pattern="[0-9]{4,6}" required></label><button>Save new PIN</button><button type="button" id="back" class="quiet">Cancel</button></form>`); root.querySelector('#back').addEventListener('click', renderParent);
-  root.querySelector('#change-form').addEventListener('submit', async (event) => { event.preventDefault(); const f = new FormData(event.currentTarget); try { await changePin(f.get('old'), f.get('next'), f.get('confirm')); renderParent('Parent PIN updated.'); } catch (error) { renderPinChange(error.message); } });
+  root.querySelector('#change-form').addEventListener('submit', async (event) => { event.preventDefault(); const f = new FormData(event.currentTarget); try { await changePin(f.get('old'), f.get('next'), f.get('confirm')); renderParent('Parent PIN updated.'); } catch (error) { logError('PIN update failed', error); renderPinChange('We could not update the PIN. Check the details and try again.'); } });
 }
 function renderReset(message = '', fromPin = false) {
   frame('Reset parent PIN', `<p class="sub">Resetting removes the PIN and permanently deletes any optional vault data. This information cannot be recovered. Learning progress is kept unless you choose to erase everything.</p>${message ? errorBox(message) : ''}<form id="reset-form" class="stack"><label>Step 1: type RESET<input name="first" autocomplete="off" required></label><label>Step 2: type RESET NANHE KADAM<input name="final" autocomplete="off" required></label><label class="inline"><input type="checkbox" name="wipe"> Also erase progress and history</label><button>Confirm reset</button><button type="button" id="back" class="quiet">Cancel</button></form>`); setState({ screen: fromPin ? 'reset' : 'parent' }); root.querySelector('#back').addEventListener('click', () => fromPin ? renderPin(false) : renderParent());
-  root.querySelector('#reset-form').addEventListener('submit', async (event) => { event.preventDefault(); const f = new FormData(event.currentTarget); try { await resetPin({ firstConfirmation: f.get('first'), finalConfirmation: f.get('final'), wipeProgress: f.has('wipe') }); renderPin(true, 'PIN reset. Set a new parent PIN.'); } catch (error) { renderReset(error.message); } });
+  root.querySelector('#reset-form').addEventListener('submit', async (event) => { event.preventDefault(); const f = new FormData(event.currentTarget); try { await resetPin({ firstConfirmation: f.get('first'), finalConfirmation: f.get('final'), wipeProgress: f.has('wipe') }); renderPin(true, 'PIN reset. Set a new parent PIN.'); } catch (error) { logError('PIN reset failed', error); renderReset('We could not complete the reset. Check both confirmations and try again.', fromPin); } });
 }
 function renderSessionResumePrompt() { /* Sessions resume directly within the engine's 30-minute window. */ }
 init();
+
+
 
 
 

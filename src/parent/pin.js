@@ -6,6 +6,13 @@ export const PIN_ITERATIONS = 210000;
 export const PARENT_IDLE_MS = 5 * 60 * 1000;
 export const BACKOFF_MS = [30_000, 120_000, 600_000, 1_800_000];
 let unlockedUntil = 0;
+export class EnvironmentError extends Error {
+  constructor() { super('Secure browser cryptography is unavailable.'); this.name = 'EnvironmentError'; }
+}
+export function requireCryptoSubtle(cryptoObject = globalThis.crypto) {
+  if (!cryptoObject?.subtle) throw new EnvironmentError();
+  return cryptoObject.subtle;
+}
 export function isValidPin(pin) { return typeof pin === 'string' && /^\d{4,6}$/.test(pin); }
 export function nextThrottle(attempts, currentTime) {
   const count = attempts.count + 1;
@@ -18,12 +25,14 @@ export function constantTimeEqual(a, b) {
   let mismatch = 0; for (let i = 0; i < a.length; i++) mismatch |= a[i] ^ b[i]; return mismatch === 0;
 }
 async function derive(pin, salt, iterations = PIN_ITERATIONS) {
-  const encoder = new TextEncoder(); const material = await crypto.subtle.importKey('raw', encoder.encode(pin), 'PBKDF2', false, ['deriveBits']);
-  return new Uint8Array(await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt, iterations }, material, 256));
+  const subtle = requireCryptoSubtle();
+  const encoder = new TextEncoder(); const material = await subtle.importKey('raw', encoder.encode(pin), 'PBKDF2', false, ['deriveBits']);
+  return new Uint8Array(await subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt, iterations }, material, 256));
 }
 export async function hasPin() { return Boolean(await get('settings', PIN_KEY)); }
 export async function setPin(pin, confirmation) {
   if (!isValidPin(pin) || pin !== confirmation) throw new Error('Enter a matching PIN with 4 to 6 digits.');
+  requireCryptoSubtle();
   const salt = crypto.getRandomValues(new Uint8Array(16)); const hash = await derive(pin, salt);
   await put('settings', PIN_KEY, { salt: [...salt], iterations: PIN_ITERATIONS, hash: [...hash] });
   await put('settings', ATTEMPT_KEY, { count: 0, level: 0, blockUntil: 0 });

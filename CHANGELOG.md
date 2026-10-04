@@ -13,3 +13,9 @@
 - Added a PBKDF2 parent PIN with persistent throttling, parent session timeout, PIN reset, and local companion setup.
 - Added configurable weekly scheduling, placeholder full/light sessions, resumable state, and daily locks.
 - Added dependency-free logic tests and Phase 1 verification notes.
+## Phase 1 follow-up — Secure-origin guidance
+
+- Added an environment capability check before service-worker registration and first-launch PIN setup.
+- Added a parent-facing secure-origin blocking screen with localhost, Android USB reverse, and HTTPS hosting guidance.
+- Replaced raw caught exception text in the UI with friendly messages and console-only details; missing Web Crypto now raises `EnvironmentError`.
+- Added environment and typed PIN environment-error tests; updated localhost/device testing instructions.
