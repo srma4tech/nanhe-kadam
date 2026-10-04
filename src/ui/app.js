@@ -7,12 +7,12 @@ import { defaultSchedule, WEEKDAYS, isSessionAvailable, dayPlan, isLightDay } fr
 import { startSession, resumeSession, advanceSession, markSessionActive, getStepModule } from '../session/engine.js';
 import { getLockState, overrideLock } from '../session/lock.js';
 import { createSpeechPlayer, pickVoice, waitForVoices } from '../speech/speech.js';
+import { registerLearningActivities, CHARACTERS } from '../activities/activities.js';
 
 const root = document.querySelector('#app');
 const ESCAPE = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 let timer; let parentTouchTimer; let registration; let quotaNotice = false; let companion = { name: 'Little friend', emoji: '🌱' };
-let session = null; let selectedEmoji = '🌱'; let updateReady = false;
-const EMOJIS = ['🌱', '🐦', '🐰', '🐢'];
+let session = null; let selectedEmoji = '🌱'; let selectedCharacter = 'sparrow'; let updateReady = false;
 function frame(title, body, cls = '') { setState({ screen: title === 'Parent area' || title === 'Change parent PIN' || title === 'Reset parent PIN' ? 'parent' : title === 'Parent setup' ? 'pin' : title === 'Choose a companion' ? 'setup' : title ? 'child' : getState().screen }); root.innerHTML = `<section class="screen ${cls}"><div class="brand"><img src="./assets/icon-192.png" alt=""><span>Nanhe Kadam</span></div>${title ? `<h1 class="title">${title}</h1>` : ''}${body}</section>`; }
 function errorBox(message) { return `<p class="error" role="alert">${ESCAPE(message)}</p>`; }
 function logError(context, error) { console.error(`[Nanhe Kadam] ${context}`, error); }
@@ -35,7 +35,7 @@ async function init() {
     }
     installVisibilityLock();
       if (!await hasPin()) return renderPin(true);
-    const saved = await get('settings', 'companion'); if (!saved) return renderCompanion(); companion = saved;
+    const saved = await get('settings', 'companion'); if (!saved) return renderCompanion(); companion = { ...saved, character: saved.character ?? 'sparrow' };
     session = await resumeSession(); if (session) return renderSession();
     await ensureSchedule(); renderHome();
   } catch (error) { showFatal(error); }
@@ -61,11 +61,12 @@ async function renderPin(setup = false, message = '') {
   });
 }
 function renderCompanion(fromParent = false) {
-  selectedEmoji = companion.emoji; const options = EMOJIS.map((emoji) => `<button class="emoji-choice ${emoji === selectedEmoji ? 'selected' : ''}" type="button" data-emoji="${emoji}" aria-label="Choose ${emoji}">${emoji}</button>`).join('');
-  frame('Choose a companion', `<p class="sub">Give your learning companion a name. Please do not use a child's name.</p><form id="companion-form" class="stack"><label>Companion name<input name="name" maxlength="24" value="${ESCAPE(companion.name)}" required></label><div class="emoji-options" aria-label="Choose a companion">${options}</div><button type="submit">Save and continue</button></form>`, 'center');
+  selectedCharacter = companion.character ?? 'sparrow';
+  const options = CHARACTERS.map((character) => `<button class="character-choice ${character.id === selectedCharacter ? 'selected' : ''}" type="button" data-character="${character.id}" aria-label="Choose ${character.name}"><img src="${character.image}" alt=""><span>${character.name}</span></button>`).join('');
+  frame('Choose a companion', `<p class="sub">Give your learning companion a name. Please do not use a child's name.</p><form id="companion-form" class="stack"><label>Companion name<input name="name" maxlength="24" value="${ESCAPE(companion.name)}" required></label><div class="character-options" aria-label="Choose a companion">${options}</div><button type="submit">Save and continue</button></form>`, 'center');
   if (fromParent) setState({ screen: 'parent' });
-  root.querySelectorAll('[data-emoji]').forEach((button) => button.addEventListener('click', () => { selectedEmoji = button.dataset.emoji; root.querySelectorAll('[data-emoji]').forEach((choice) => choice.classList.toggle('selected', choice === button)); }));
-  root.querySelector('#companion-form').addEventListener('submit', async (event) => { event.preventDefault(); const name = new FormData(event.currentTarget).get('name').trim(); if (!name) return; companion = { name, emoji: selectedEmoji }; await put('settings', 'companion', companion); await ensureSchedule(); if (fromParent) renderParent(); else renderHome(); });
+  root.querySelectorAll('[data-character]').forEach((button) => button.addEventListener('click', () => { selectedCharacter = button.dataset.character; root.querySelectorAll('[data-character]').forEach((choice) => choice.classList.toggle('selected', choice === button)); }));
+  root.querySelector('#companion-form').addEventListener('submit', async (event) => { event.preventDefault(); const name = new FormData(event.currentTarget).get('name').trim(); if (!name) return; const character = CHARACTERS.find((item) => item.id === selectedCharacter) ?? CHARACTERS[0]; companion = { name, character: character.id, emoji: character.emoji }; await put('settings', 'companion', companion); await ensureSchedule(); if (fromParent) renderParent(); else renderHome(); });
 }
 async function homeStatus() {
   const current = await now(); const date = new Date(current); const day = date.getDay(); const schedule = await get('schedule', 'week') ?? defaultSchedule(); const dayConfig = schedule[day] ?? defaultSchedule()[day];
@@ -161,6 +162,7 @@ function renderReset(message = '', fromPin = false) {
   root.querySelector('#reset-form').addEventListener('submit', async (event) => { event.preventDefault(); const f = new FormData(event.currentTarget); try { await resetPin({ firstConfirmation: f.get('first'), finalConfirmation: f.get('final'), wipeProgress: f.has('wipe') }); renderPin(true, 'PIN reset. Set a new parent PIN.'); } catch (error) { logError('PIN reset failed', error); renderReset('We could not complete the reset. Check both confirmations and try again.', fromPin); } });
 }
 function renderSessionResumePrompt() { /* Sessions resume directly within the engine's 30-minute window. */ }
+registerLearningActivities();
 init();
 
 

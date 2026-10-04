@@ -31,3 +31,10 @@
 - Added the day-plan schema and 28 local Hindi/English plans with original story summaries, missions, and paper prompts.
 - Replaced the content-validator placeholder with schema, bilingual-field, unique-ID, license, and local-asset checks plus invalid fixtures.
 - Added a bilingual human safety/read-through and adult recording checklist; human review remains pending.
+
+## Phase 4 — Activities and characters
+
+- Registered bilingual matching, counting, sound/listening, and before/after activities in the session module system.
+- Added gentle hints after two misses and positive completion language without scores or failure states.
+- Added four original local SVG companion illustrations and reduced-motion-aware character motion.
+- Added unit coverage for retry hints and completed activity state.
