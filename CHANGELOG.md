@@ -19,3 +19,9 @@
 - Added a parent-facing secure-origin blocking screen with localhost, Android USB reverse, and HTTPS hosting guidance.
 - Replaced raw caught exception text in the UI with friendly messages and console-only details; missing Web Crypto now raises `EnvironmentError`.
 - Added environment and typed PIN environment-error tests; updated localhost/device testing instructions.
+
+## Phase 2 — On-device speech
+
+- Added phrase splitting, local voice preference, cancel-before-play sequencing, and speech completion handling.
+- Added parent-only device voice inventory and preview controls with local language, speed, and pitch settings.
+- Added mocked speech tests and a human device voice checklist; actual Android/tablet inventories remain unverified.

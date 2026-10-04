@@ -3,7 +3,7 @@ const CACHE_NAME = `${CACHE_PREFIX}v1`;
 const APP_SHELL = [
   './', './index.html', './manifest.webmanifest', './sw.js',
   './src/core/storage.js', './src/core/clock.js', './src/core/state.js', './src/core/environment.js',
-  './src/parent/pin.js', './src/session/engine.js', './src/session/lock.js', './src/session/schedule.js',
+  './src/parent/pin.js', './src/speech/speech.js', './src/session/engine.js', './src/session/lock.js', './src/session/schedule.js',
   './src/ui/app.js', './src/ui/styles.css',
   './assets/icon-192.png', './assets/icon-512.png', './assets/icon-maskable-512.png'
 ];
