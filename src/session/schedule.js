@@ -15,7 +15,7 @@ export function dayPlan(day, config = defaultDay(day)) {
   if (day === 0) return { kind: 'adventure', steps: [] };
   if (!config.enabled || config.paused || config.skipped) return { kind: 'unavailable', steps: [] };
   const steps = isLightDay(day)
-    ? [{ id: 'hello', label: 'Hello', minutes: 1 }, { id: 'rhyme', label: 'Rhyme', minutes: 2 }, { id: 'theme', label: 'Short theme', minutes: 5 }, { id: 'goodbye', label: 'Mission and goodbye', minutes: 2 }]
+    ? [{ id: 'hello', label: 'Hello', minutes: 1 }, { id: 'rhyme', label: 'Rhyme', minutes: 2 }, { id: 'theme', label: day === 6 ? 'Weekly recap' : 'Short theme', minutes: 5 }, { id: 'goodbye', label: 'Mission and goodbye', minutes: 2 }]
     : [{ id: 'hello', label: 'Hello', minutes: 1 }, { id: 'rhyme', label: 'Rhyme', minutes: 3 }, { id: 'revision', label: 'Revision round', minutes: 5 }, { id: 'theme', label: 'Theme', minutes: 7 }, { id: 'story', label: 'Family-voice story', minutes: 2 }, { id: 'goodbye', label: 'Mission and goodbye', minutes: 2 }];
   return { kind: 'session', steps };
 }

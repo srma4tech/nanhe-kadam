@@ -38,3 +38,10 @@
 - Added gentle hints after two misses and positive completion language without scores or failure states.
 - Added four original local SVG companion illustrations and reduced-motion-aware character motion.
 - Added unit coverage for retry hints and completed activity state.
+
+## Phase 5 — Spaced review and family rhythm
+
+- Added four mastery levels with 1/3/7/21-day spacing, weak-topic priority, theme preference, and a familiar easy review.
+- Limited the planner to six short prompts and a five-minute cap, persisted completed activity mastery locally, and added a parent weekly aggregate.
+- Kept Saturday as a light weekly recap and added a monthly Gaon Mela adventure card that does not enable Sunday games.
+- Added deterministic interval, cap, summary, and calendar tests; family pacing still needs a pilot.

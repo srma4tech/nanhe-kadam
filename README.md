@@ -10,6 +10,7 @@ The child-facing shell works offline after its first successful load. There are 
 
 - `src/core/` — IndexedDB, tamper-aware clock, and event-based app state
 - `src/session/` — weekly schedule, session state machine, and daily lock
+- `src/revision/` — spaced review planner and local progress summaries
 - `src/parent/` — PIN setup, verification, throttling, reset, and parent controls
 - `src/speech/` — phrase-based on-device speech and voice selection helpers
 - `src/ui/` — child and parent screens and local styles

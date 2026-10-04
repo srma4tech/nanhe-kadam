@@ -8,6 +8,7 @@ import { startSession, resumeSession, advanceSession, markSessionActive, getStep
 import { getLockState, overrideLock } from '../session/lock.js';
 import { createSpeechPlayer, pickVoice, waitForVoices } from '../speech/speech.js';
 import { registerLearningActivities, CHARACTERS } from '../activities/activities.js';
+import { buildLearningSummary, isMonthlyMela, selectDailyReviews } from '../revision/spaced.js';
 
 const root = document.querySelector('#app');
 const ESCAPE = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -70,7 +71,7 @@ function renderCompanion(fromParent = false) {
 }
 async function homeStatus() {
   const current = await now(); const date = new Date(current); const day = date.getDay(); const schedule = await get('schedule', 'week') ?? defaultSchedule(); const dayConfig = schedule[day] ?? defaultSchedule()[day];
-  if (day === 0) return { kind: 'adventure' };
+  if (day === 0) return { kind: 'adventure', mela: isMonthlyMela(date) };
   const lock = await getLockState(current); if (lock.locked) return { kind: 'locked' };
   const history = await get('history', 'dailyCount'); const dayKey = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`; const count = history?.dayKey === dayKey ? history.count : 0;
   return { kind: isSessionAvailable(day, dayConfig, date, count) ? 'ready' : 'unavailable', day, schedule };
@@ -78,7 +79,7 @@ async function homeStatus() {
 async function renderHome() {
   try {
     const status = await homeStatus();
-    if (status.kind === 'adventure') { childFrame('Today is for an adventure', `<div class="hero-icon" aria-hidden="true">🧭</div><p class="sub">Look for something lovely to explore together.</p>`); return; }
+    if (status.kind === 'adventure') { childFrame(status.mela ? 'Gaon Mela adventure' : 'Today is for an adventure', `<div class="hero-icon" aria-hidden="true">🧭</div><p class="sub">${status.mela ? 'Choose a favorite thing to notice or share together.' : 'Look for something lovely to explore together.'}</p>`); return; }
     if (status.kind === 'locked') { childFrame('See you next time', `<div class="hero-icon" aria-hidden="true">${companion.emoji}</div><p class="sub">Your learning time is resting now. We will be here next time.</p><svg width="112" height="76" viewBox="0 0 112 76" aria-hidden="true"><path d="M10 59c18-25 27-9 44-34 14 21 29 12 48 34" fill="none" stroke="#91b786" stroke-width="8" stroke-linecap="round"/><circle cx="56" cy="25" r="8" fill="#f1d794"/></svg>`); return; }
     if (status.kind === 'unavailable') { childFrame('A little pause', `<div class="hero-icon" aria-hidden="true">🌼</div><p class="sub">We will see you at the next learning time.</p>`); return; }
     const continuing = session && session.kind === 'session';
@@ -121,7 +122,11 @@ async function renderParent(message = '') {
   if (!isParentUnlocked()) return renderHome(); touchParent(); clearInterval(timer); const schedule = await get('schedule', 'week') ?? defaultSchedule(); const dev = (await get('settings', 'developerMode'))?.enabled ?? false;
   setState({ screen: 'parent' });
   const cards = WEEKDAYS.map((name, day) => { const cfg = schedule[day]; return `<div class="day-card"><div class="day-title">${name}${dayPlan(day, cfg).kind === 'adventure' ? ' · Adventure card' : ''}</div><label class="inline"><input type="checkbox" data-day="${day}" data-field="enabled" ${cfg.enabled ? 'checked' : ''} ${day === 0 ? 'disabled' : ''}> Session available</label><label>Start time (optional)<input type="time" data-day="${day}" data-field="startTime" value="${cfg.startTime ?? ''}" ${day === 0 ? 'disabled' : ''}></label><label>Maximum sessions per day<select data-day="${day}" data-field="maxSessions" ${day === 0 ? 'disabled' : ''}>${[1,2,3].map(n => `<option value="${n}" ${cfg.maxSessions===n?'selected':''}>${n}</option>`).join('')}</select></label><label class="inline"><input type="checkbox" data-day="${day}" data-field="paused" ${cfg.paused ? 'checked' : ''} ${day === 0 ? 'disabled' : ''}> Pause this day</label><label class="inline"><input type="checkbox" data-day="${day}" data-field="skipped" ${cfg.skipped ? 'checked' : ''} ${day === 0 ? 'disabled' : ''}> Skip this day</label></div>`; }).join('');
-  const meter = await estimateStorage(); frame('', `${parentHeader()}${message ? errorBox(message) : ''}<p class="small">Changes stay on this device. Storage used: ${meter.usage == null ? 'not available' : `${(meter.usage / 1048576).toFixed(1)} MB`}.</p><div class="list"><h2>Weekly schedule</h2>${cards}<button id="save-schedule">Save schedule</button><h2>Speech</h2><button id="voice-test" class="secondary">Voice check and settings</button><button id="change-pin" class="secondary">Change parent PIN</button><button id="reset-pin" class="quiet">Forgot PIN? Reset</button><button id="override-lock" class="quiet">Resume learning today</button><button id="storage-permission" class="quiet">Request persistent storage</button><h2>App update</h2><p class="small">${updateReady ? 'An update is ready.' : 'No update is waiting.'}</p><button id="apply-update" class="secondary" ${!updateReady || session ? 'disabled' : ''}>Apply update${session ? ' after session' : ''}</button><h2>Developer tools</h2><label class="inline"><input id="dev-mode" type="checkbox" ${dev ? 'checked' : ''}> Enable developer mode</label>${dev ? '<div class="split"><button id="skip-time" class="secondary">Add 5 minutes</button><button id="simulate-end" class="secondary">Simulate session end</button></div><button id="clear-time" class="quiet">Clear time skip</button>' : ''}</div>`);
+  const meter = await estimateStorage();
+  const reviewRecords = await get('progress', 'reviewMastery') ?? [];
+  const summary = buildLearningSummary(reviewRecords);
+  const dueToday = selectDailyReviews(reviewRecords).length;
+  frame('', `${parentHeader()}${message ? errorBox(message) : ''}<p class="small">Changes stay on this device. Storage used: ${meter.usage == null ? 'not available' : `${(meter.usage / 1048576).toFixed(1)} MB`}.</p><div class="list"><h2>Learning summary</h2><p class="small">Practiced this week: ${summary.practicedThisWeek}. Familiar topics: ${summary.strong}. Reviews ready: ${dueToday}, capped at six quick prompts.</p><h2>Weekly schedule</h2>${cards}<button id="save-schedule">Save schedule</button><h2>Speech</h2><button id="voice-test" class="secondary">Voice check and settings</button><button id="change-pin" class="secondary">Change parent PIN</button><button id="reset-pin" class="quiet">Forgot PIN? Reset</button><button id="override-lock" class="quiet">Resume learning today</button><button id="storage-permission" class="quiet">Request persistent storage</button><h2>App update</h2><p class="small">${updateReady ? 'An update is ready.' : 'No update is waiting.'}</p><button id="apply-update" class="secondary" ${!updateReady || session ? 'disabled' : ''}>Apply update${session ? ' after session' : ''}</button><h2>Developer tools</h2><label class="inline"><input id="dev-mode" type="checkbox" ${dev ? 'checked' : ''}> Enable developer mode</label>${dev ? '<div class="split"><button id="skip-time" class="secondary">Add 5 minutes</button><button id="simulate-end" class="secondary">Simulate session end</button></div><button id="clear-time" class="quiet">Clear time skip</button>' : ''}</div>`);
   root.querySelector('#home').addEventListener('click', () => { touchParent(); renderHome(); });
   root.querySelector('#save-schedule').addEventListener('click', saveSchedule);
   root.querySelector('#voice-test').addEventListener('click', renderVoiceTest);

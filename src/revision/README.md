@@ -1,4 +1,3 @@
-﻿# revision
+# Revision
 
-This folder is reserved for the $d module in a later phase.
-No application code is included in Phase 0.
+Pure spaced-review planning and local aggregate progress helpers. Mastery uses four levels and review intervals of 1, 3, 7, and 21 days.
