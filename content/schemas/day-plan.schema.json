@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Nanhe Kadam day plan",
+  "type": "object",
+  "required": ["id", "week", "day", "theme", "concept", "activity", "mission", "story", "paperPrompt", "license"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^w[1-4]-d[1-7]$" },
+    "week": { "type": "integer", "minimum": 1, "maximum": 4 },
+    "day": { "type": "integer", "minimum": 1, "maximum": 7 },
+    "theme": { "$ref": "#/$defs/bilingual" },
+    "concept": { "$ref": "#/$defs/bilingual" },
+    "activity": { "$ref": "#/$defs/bilingual" },
+    "mission": { "$ref": "#/$defs/bilingual" },
+    "story": { "type": "object", "required": ["title", "summary", "license"], "properties": { "title": { "$ref": "#/$defs/bilingual" }, "summary": { "$ref": "#/$defs/bilingual" }, "license": { "type": "string" } } },
+    "paperPrompt": { "$ref": "#/$defs/bilingual" },
+    "recordingPrompt": { "$ref": "#/$defs/bilingual" },
+    "license": { "type": "string" },
+    "asset": { "type": "string" }
+  },
+  "$defs": { "bilingual": { "type": "object", "required": ["hi", "en"], "properties": { "hi": { "type": "string", "minLength": 1 }, "en": { "type": "string", "minLength": 1 } } } }
+}

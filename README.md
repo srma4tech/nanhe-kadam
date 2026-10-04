@@ -1,6 +1,6 @@
 ﻿# Nanhe Kadam
 
-Nanhe Kadam is a bilingual Hindi and English learning companion for young children. Phases 1 and 2 provide an installable offline PWA shell, local storage, a parent PIN area, schedule planning, placeholder session screens, and an on-device speech layer with parent voice checks. Structured learning activities and content are still being built.
+Nanhe Kadam is a bilingual Hindi and English learning companion for young children. Phases 1–3 provide an installable offline PWA shell, local storage, parent PIN controls, schedule planning, on-device speech, and a four-week bilingual curriculum. Learning activity screens are still being built.
 
 ## Privacy promise
 
@@ -13,11 +13,13 @@ The child-facing shell works offline after its first successful load. There are 
 - `src/parent/` — PIN setup, verification, throttling, reset, and parent controls
 - `src/speech/` — phrase-based on-device speech and voice selection helpers
 - `src/ui/` — child and parent placeholder screens and local styles
-- `content/` — reserved schemas and bilingual learning content directories
+- `content/` — day-plan schema and four-week bilingual curriculum
 - `assets/` — generated local PWA icons
 - `scripts/` — local icon generation and content validation scripts
 - `tests/` — Node built-in tests for pure session, schedule, clock, and PIN logic
 - `docs/` — decisions, reconnaissance, and verification records
+
+Validate curriculum structure and language coverage with `node scripts/validate-content.mjs`.
 
 ## Run locally
 

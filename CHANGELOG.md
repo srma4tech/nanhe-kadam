@@ -25,3 +25,9 @@
 - Added phrase splitting, local voice preference, cancel-before-play sequencing, and speech completion handling.
 - Added parent-only device voice inventory and preview controls with local language, speed, and pitch settings.
 - Added mocked speech tests and a human device voice checklist; actual Android/tablet inventories remain unverified.
+
+## Phase 3 — Bilingual curriculum
+
+- Added the day-plan schema and 28 local Hindi/English plans with original story summaries, missions, and paper prompts.
+- Replaced the content-validator placeholder with schema, bilingual-field, unique-ID, license, and local-asset checks plus invalid fixtures.
+- Added a bilingual human safety/read-through and adult recording checklist; human review remains pending.
