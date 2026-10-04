@@ -1,4 +1,3 @@
-﻿# family
+# Family media
 
-This folder is reserved for the $d module in a later phase.
-No application code is included in Phase 0.
+Parent-authenticated local recording and optional mission-photo helpers. Audio and resized photos are stored in IndexedDB and can be individually deleted. Family media is excluded from backups.

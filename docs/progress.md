@@ -9,8 +9,8 @@ This log tracks implementation separately from hands-on checks that require brow
 | 2 — Speech layer | Implemented; device checks pending | `78f07d3` | 27 tests passed; JavaScript syntax checks pass | Android voice inventories, audible quality, `voiceschanged`/boundary/end behavior; see `docs/recon-voices.md` |
 | 3 — Learning content | Implemented; human review pending | `79e81fb` | 31 tests passed; curriculum validator passes | Bilingual adult read-through and child-safety review; see `docs/content-review-checklist.md` |
 | 4 — Activities and characters | Implemented; device checks pending | `b9a8283` | 34 tests pass including retry state; syntax and curriculum checks pass | Touch, screen reader, visual and child-comprehension checks require target devices |
-| 5 — Spaced repetition and rhythm | Implemented; family pilot pending | Pending | Planner tests cover intervals, queue cap, weak/theme/easy ordering, summaries, and monthly marker | Actual pacing and usefulness need a family pilot |
-| 6 — Family recordings and media | Not started | — | — | — |
+| 5 — Spaced repetition and rhythm | Implemented; family pilot pending | `e6ea2d9` | 34 tests; validator passes; planner tests cover intervals, queue cap, weak/theme/easy ordering, summaries | Actual pacing and usefulness need a family pilot |
+| 6 — Family recordings and media | Implemented; hardware checks pending | Pending | Media mocks cover recording, MIME fallback, microphone failure, and photo resize | Verify real microphone/camera, offline media, storage pressure, and deletion on devices |
 | 7 — Parent dashboard and data tools | Not started | — | — | — |
 | 8 — Smart Packs | Not started | — | — | — |
 | 9 — Accessibility and hardening | Not started | — | — | — |

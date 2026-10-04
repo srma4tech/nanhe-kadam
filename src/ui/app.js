@@ -9,11 +9,12 @@ import { getLockState, overrideLock } from '../session/lock.js';
 import { createSpeechPlayer, pickVoice, waitForVoices } from '../speech/speech.js';
 import { registerLearningActivities, CHARACTERS } from '../activities/activities.js';
 import { buildLearningSummary, isMonthlyMela, selectDailyReviews } from '../revision/spaced.js';
+import { beginFamilyRecording, deleteFamilyMedia, listFamilyMedia, saveMissionPhoto } from '../family/media.js';
 
 const root = document.querySelector('#app');
 const ESCAPE = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 let timer; let parentTouchTimer; let registration; let quotaNotice = false; let companion = { name: 'Little friend', emoji: '🌱' };
-let session = null; let selectedEmoji = '🌱'; let selectedCharacter = 'sparrow'; let updateReady = false;
+let session = null; let selectedEmoji = '🌱'; let selectedCharacter = 'sparrow'; let updateReady = false; let activeRecording = null; let mediaURLs = []; let mediaTimer;
 function frame(title, body, cls = '') { setState({ screen: title === 'Parent area' || title === 'Change parent PIN' || title === 'Reset parent PIN' ? 'parent' : title === 'Parent setup' ? 'pin' : title === 'Choose a companion' ? 'setup' : title ? 'child' : getState().screen }); root.innerHTML = `<section class="screen ${cls}"><div class="brand"><img src="./assets/icon-192.png" alt=""><span>Nanhe Kadam</span></div>${title ? `<h1 class="title">${title}</h1>` : ''}${body}</section>`; }
 function errorBox(message) { return `<p class="error" role="alert">${ESCAPE(message)}</p>`; }
 function logError(context, error) { console.error(`[Nanhe Kadam] ${context}`, error); }
@@ -24,7 +25,8 @@ function attachParentHold() {
   target.addEventListener('pointerdown', begin); ['pointerup', 'pointercancel', 'pointerleave'].forEach((name) => target.addEventListener(name, cancel));
 }
 function childFrame(title, content) { frame(title, content, 'center'); attachParentHold(); }
-function installVisibilityLock() { window.addEventListener('unhandledrejection', (event) => { if (event.reason?.name === 'StorageQuotaError') { event.preventDefault(); console.error('[Nanhe Kadam] Storage quota error', event.reason); quotaNotice = true; if (getState().screen === 'parent' && isParentUnlocked()) renderParent('Device storage is full. Please free space and try again.'); } }); root.addEventListener('pointerdown', (event) => { if (getState().screen === 'parent') { if (isParentUnlocked()) touchParent(); else { event.stopImmediatePropagation(); renderHome(); } } }, true); root.addEventListener('keydown', () => { if (getState().screen === 'parent' && isParentUnlocked()) touchParent(); }, true); document.addEventListener('visibilitychange', () => { if (document.hidden) { lockParent(); if (getState().screen === 'parent') renderHome(); } }); setInterval(() => { if (getState().screen === 'parent' && !isParentUnlocked()) renderHome(); }, 5000); }
+function releaseMediaUrls() { mediaURLs.forEach((url) => URL.revokeObjectURL(url)); mediaURLs = []; }
+function installVisibilityLock() { window.addEventListener('unhandledrejection', (event) => { if (event.reason?.name === 'StorageQuotaError') { event.preventDefault(); console.error('[Nanhe Kadam] Storage quota error', event.reason); quotaNotice = true; if (getState().screen === 'parent' && isParentUnlocked()) renderParent('Device storage is full. Please free space and try again.'); } }); root.addEventListener('pointerdown', (event) => { if (getState().screen === 'parent') { if (isParentUnlocked()) touchParent(); else { event.stopImmediatePropagation(); renderHome(); } } }, true); root.addEventListener('keydown', () => { if (getState().screen === 'parent' && isParentUnlocked()) touchParent(); }, true); document.addEventListener('visibilitychange', async () => { if (document.hidden) { if (activeRecording) { try { await activeRecording.stop(); } catch (error) { logError('Interrupted recording could not be saved', error); } activeRecording = null; } lockParent(); if (getState().screen === 'parent') renderHome(); } }); setInterval(() => { if (getState().screen === 'parent' && !isParentUnlocked()) renderHome(); }, 5000); }
 async function init() {
   const environment = checkEnvironment(window);
   if (!environment.ok) return renderEnvironmentGate();
@@ -77,6 +79,7 @@ async function homeStatus() {
   return { kind: isSessionAvailable(day, dayConfig, date, count) ? 'ready' : 'unavailable', day, schedule };
 }
 async function renderHome() {
+  releaseMediaUrls();
   try {
     const status = await homeStatus();
     if (status.kind === 'adventure') { childFrame(status.mela ? 'Gaon Mela adventure' : 'Today is for an adventure', `<div class="hero-icon" aria-hidden="true">🧭</div><p class="sub">${status.mela ? 'Choose a favorite thing to notice or share together.' : 'Look for something lovely to explore together.'}</p>`); return; }
@@ -118,6 +121,7 @@ async function advance(completed, skipMinutes = 0) {
 async function incrementHistoryToday() { const d = new Date(await now()); const dayKey = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`; const entry = await get('history', 'dailyCount'); if (!entry || entry.dayKey !== dayKey) await put('history', 'dailyCount', { dayKey, count: 1 }); }
 function parentHeader() { return `<div class="screen-head"><h1>Parent area</h1><button id="home" class="quiet">Done</button></div>`; }
 async function renderParent(message = '') {
+  releaseMediaUrls();
   if (!message && quotaNotice) message = 'Device storage is full. Please ask a parent to free space.';
   if (!isParentUnlocked()) return renderHome(); touchParent(); clearInterval(timer); const schedule = await get('schedule', 'week') ?? defaultSchedule(); const dev = (await get('settings', 'developerMode'))?.enabled ?? false;
   setState({ screen: 'parent' });
@@ -126,10 +130,11 @@ async function renderParent(message = '') {
   const reviewRecords = await get('progress', 'reviewMastery') ?? [];
   const summary = buildLearningSummary(reviewRecords);
   const dueToday = selectDailyReviews(reviewRecords).length;
-  frame('', `${parentHeader()}${message ? errorBox(message) : ''}<p class="small">Changes stay on this device. Storage used: ${meter.usage == null ? 'not available' : `${(meter.usage / 1048576).toFixed(1)} MB`}.</p><div class="list"><h2>Learning summary</h2><p class="small">Practiced this week: ${summary.practicedThisWeek}. Familiar topics: ${summary.strong}. Reviews ready: ${dueToday}, capped at six quick prompts.</p><h2>Weekly schedule</h2>${cards}<button id="save-schedule">Save schedule</button><h2>Speech</h2><button id="voice-test" class="secondary">Voice check and settings</button><button id="change-pin" class="secondary">Change parent PIN</button><button id="reset-pin" class="quiet">Forgot PIN? Reset</button><button id="override-lock" class="quiet">Resume learning today</button><button id="storage-permission" class="quiet">Request persistent storage</button><h2>App update</h2><p class="small">${updateReady ? 'An update is ready.' : 'No update is waiting.'}</p><button id="apply-update" class="secondary" ${!updateReady || session ? 'disabled' : ''}>Apply update${session ? ' after session' : ''}</button><h2>Developer tools</h2><label class="inline"><input id="dev-mode" type="checkbox" ${dev ? 'checked' : ''}> Enable developer mode</label>${dev ? '<div class="split"><button id="skip-time" class="secondary">Add 5 minutes</button><button id="simulate-end" class="secondary">Simulate session end</button></div><button id="clear-time" class="quiet">Clear time skip</button>' : ''}</div>`);
+  frame('', `${parentHeader()}${message ? errorBox(message) : ''}<p class="small">Changes stay on this device. Storage used: ${meter.usage == null ? 'not available' : `${(meter.usage / 1048576).toFixed(1)} MB`}.</p><div class="list"><h2>Learning summary</h2><p class="small">Practiced this week: ${summary.practicedThisWeek}. Familiar topics: ${summary.strong}. Reviews ready: ${dueToday}, capped at six quick prompts.</p><h2>Weekly schedule</h2>${cards}<button id="save-schedule">Save schedule</button><h2>Speech</h2><button id="voice-test" class="secondary">Voice check and settings</button><h2>Family recordings and moments</h2><button id="media-open" class="secondary">Manage local family media</button><button id="change-pin" class="secondary">Change parent PIN</button><button id="reset-pin" class="quiet">Forgot PIN? Reset</button><button id="override-lock" class="quiet">Resume learning today</button><button id="storage-permission" class="quiet">Request persistent storage</button><h2>App update</h2><p class="small">${updateReady ? 'An update is ready.' : 'No update is waiting.'}</p><button id="apply-update" class="secondary" ${!updateReady || session ? 'disabled' : ''}>Apply update${session ? ' after session' : ''}</button><h2>Developer tools</h2><label class="inline"><input id="dev-mode" type="checkbox" ${dev ? 'checked' : ''}> Enable developer mode</label>${dev ? '<div class="split"><button id="skip-time" class="secondary">Add 5 minutes</button><button id="simulate-end" class="secondary">Simulate session end</button></div><button id="clear-time" class="quiet">Clear time skip</button>' : ''}</div>`);
   root.querySelector('#home').addEventListener('click', () => { touchParent(); renderHome(); });
   root.querySelector('#save-schedule').addEventListener('click', saveSchedule);
   root.querySelector('#voice-test').addEventListener('click', renderVoiceTest);
+  root.querySelector('#media-open').addEventListener('click', renderFamilyMedia);
   root.querySelector('#change-pin').addEventListener('click', renderPinChange);
   root.querySelector('#reset-pin').addEventListener('click', renderReset);
   root.querySelector('#override-lock').addEventListener('click', async () => { await overrideLock({ parentUnlocked: isParentUnlocked() }); session = await resumeSession(); renderParent('Today’s lock was lifted.'); });
@@ -152,6 +157,32 @@ async function renderVoiceTest() {
   root.querySelectorAll('[data-voice]').forEach((button) => button.addEventListener('click', async () => { const voice = voices[Number(button.dataset.voice)]; const lang = voice.lang || root.querySelector('#speech-lang').value; try { await player.speak('नमस्ते। Hello, let us learn together.', { lang, voice, rate: Number(root.querySelector('#speech-rate').value), pitch: Number(root.querySelector('#speech-pitch').value) }); } catch (error) { logError('Voice preview failed', error); const status = root.querySelector('#speech-status'); if (status) status.textContent = 'Voice preview could not play on this device.'; } }));
   root.querySelector('#speech-lang').addEventListener('change', async (event) => { const next = { ...stored, lang: event.target.value }; await put('settings', 'speech', next); });
   for (const key of ['rate', 'pitch']) root.querySelector(`#speech-${key}`).addEventListener('change', async (event) => { stored[key] = Number(event.target.value); await put('settings', 'speech', stored); });
+}
+async function renderFamilyMedia(message = '') {
+  if (!isParentUnlocked()) return renderHome();
+  releaseMediaUrls();
+  const items = await listFamilyMedia(); const meter = await estimateStorage();
+  const cards = items.map((item) => `<article class="media-card"><strong>${item.type === 'audio' ? 'Voice clip · ' + ESCAPE(item.speaker || 'Family member') : ESCAPE(item.label || 'Mission moment')}</strong><p class="small">${new Date(item.createdAt).toLocaleDateString()}</p>${item.type === 'audio' ? `<audio controls data-play="${ESCAPE(item.id)}"></audio>` : `<img class="media-photo" data-photo="${ESCAPE(item.id)}" alt="Locally saved mission moment">`}<button type="button" class="quiet" data-delete-media="${ESCAPE(item.id)}">Delete from this device</button></article>`).join('');
+  frame('Family media', `${parentHeader()}${message ? errorBox(message) : ''}<p class="small">Recordings and optional photos stay on this device and are not included in backups. Storage used: ${meter.usage == null ? 'not available' : (meter.usage / 1048576).toFixed(1) + ' MB'}.</p><div class="stack"><h2>Family voice</h2><p class="small">A parent may record a short story or sound. Recording stops after one minute, or tap Stop and save.</p><label>Speaker tag<select id="media-speaker"><option>Family member</option><option>Adult voice 1</option><option>Adult voice 2</option></select></label><button id="record-toggle" class="secondary">${activeRecording ? 'Stop and save recording' : 'Start recording'}</button><p id="record-status" class="small" aria-live="polite">${activeRecording ? 'Recording is active.' : ''}</p><h2>Optional mission photo</h2><form id="photo-form" class="stack"><label>Choose a photo from this device<input name="photo" type="file" accept="image/*" capture="environment"></label><button type="submit">Resize and save photo on this device</button></form><h2>Saved family media</h2><div class="media-list">${cards || '<p class="small">No saved recordings or photos yet.</p>'}</div></div>`);
+  setState({ screen: 'parent' });
+  root.querySelector('#home').addEventListener('click', () => { if (activeRecording) { activeRecording.cancel(); activeRecording = null; } renderParent(); });
+  root.querySelectorAll('[data-play]').forEach((audio) => { const item = items.find((entry) => entry.id === audio.dataset.play); if (item?.blob) { const url = URL.createObjectURL(item.blob); mediaURLs.push(url); audio.src = url; } });
+  root.querySelectorAll('[data-photo]').forEach((img) => { const item = items.find((entry) => entry.id === img.dataset.photo); if (item?.blob) { const url = URL.createObjectURL(item.blob); mediaURLs.push(url); img.src = url; } });
+  root.querySelectorAll('[data-delete-media]').forEach((button) => button.addEventListener('click', async () => { if (!window.confirm('Delete this item from this device?')) return; try { await deleteFamilyMedia(items.find((item) => item.id === button.dataset.deleteMedia)); renderFamilyMedia('Item deleted from this device.'); } catch (error) { logError('Media deletion failed', error); renderFamilyMedia('This item could not be deleted. Please try again.'); } }));
+  root.querySelector('#record-toggle').addEventListener('click', async () => {
+    const status = root.querySelector('#record-status');
+    try {
+      if (activeRecording) { await activeRecording.stop(); activeRecording = null; clearTimeout(mediaTimer); renderFamilyMedia('Recording saved on this device.'); }
+      else { activeRecording = await beginFamilyRecording({ speaker: root.querySelector('#media-speaker').value }); status.textContent = 'Recording is active. Tap Stop and save when finished.'; root.querySelector('#record-toggle').textContent = 'Stop and save recording'; mediaTimer = setTimeout(async () => { try { await activeRecording?.stop(); activeRecording = null; renderFamilyMedia('One-minute recording saved on this device.'); } catch (error) { logError('Recording could not be saved', error); activeRecording = null; renderFamilyMedia('Recording could not be saved. Please try again.'); } }, 60_000); }
+    } catch (error) { logError('Family recording failed', error); activeRecording = null; renderFamilyMedia('Recording is unavailable. Check microphone permission and try again.'); }
+  });
+  root.querySelector('#photo-form').addEventListener('submit', async (event) => {
+    event.preventDefault(); const file = new FormData(event.currentTarget).get('photo');
+    if (!file?.size) return renderFamilyMedia('Choose a photo first.');
+    if (file.size > 25 * 1024 * 1024) return renderFamilyMedia('Choose a photo smaller than 25 MB.');
+    try { await saveMissionPhoto(file); renderFamilyMedia('Photo resized and saved on this device.'); }
+    catch (error) { logError('Mission photo could not be saved', error); renderFamilyMedia('Photo could not be saved. Please try another image.'); }
+  });
 }
 async function saveSchedule() {
   const schedule = await get('schedule', 'week') ?? defaultSchedule();

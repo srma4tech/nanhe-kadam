@@ -45,3 +45,10 @@
 - Limited the planner to six short prompts and a five-minute cap, persisted completed activity mastery locally, and added a parent weekly aggregate.
 - Kept Saturday as a light weekly recap and added a monthly Gaon Mela adventure card that does not enable Sunday games.
 - Added deterministic interval, cap, summary, and calendar tests; family pacing still needs a pilot.
+
+## Phase 6 — Family media
+
+- Added parent-only local voice recording with Opus-first MIME selection, anonymized speaker tags, one-minute cutoff, and stopped-track cleanup.
+- Added optional mission photos resized to a 1280px maximum edge before local storage.
+- Added on-device playback, photo preview, individual deletion, and local storage usage information; no media is sent remotely.
+- Added mocked recorder, MIME, microphone availability, and image downscale tests; real device checks remain pending.
