@@ -1,6 +1,6 @@
 ﻿# Nanhe Kadam
 
-Nanhe Kadam is a bilingual Hindi and English learning companion for young children. Phases 1–6 provide an installable offline PWA shell, local data and parent controls, on-device speech, a four-week bilingual curriculum, gentle activities, spaced review, and optional parent-managed local media.
+Nanhe Kadam is a bilingual Hindi and English learning companion for young children. Phases 1–7 provide an installable offline PWA shell, local data and parent controls, on-device speech, a four-week bilingual curriculum, gentle activities, spaced review, optional parent-managed local media, and validated local backups.
 
 ## Privacy promise
 
@@ -11,7 +11,7 @@ The child-facing shell works offline after its first successful load. There are 
 - `src/core/` — IndexedDB, tamper-aware clock, and event-based app state
 - `src/session/` — weekly schedule, session state machine, and daily lock
 - `src/revision/` — spaced review planner and local progress summaries
-- `src/parent/` — PIN setup, verification, throttling, reset, and parent controls
+- `src/parent/` — PIN setup, verification, throttling, reset, dashboard, and backup validation
 - `src/family/` — parent-managed local audio recording and resized mission photos
 - `src/speech/` — phrase-based on-device speech and voice selection helpers
 - `src/ui/` — child and parent screens and local styles
@@ -21,6 +21,8 @@ The child-facing shell works offline after its first successful load. There are 
 - `scripts/` — local icon generation and content validation scripts
 - `tests/` — Node built-in tests for pure session, schedule, clock, and PIN logic
 - `docs/` — decisions, reconnaissance, and verification records
+
+Parent backups are local JSON downloads. They omit PIN hashes, the encrypted vault, family recordings, and photos. Restore validates the file first and merges its records without removing records that are absent from the backup.
 
 Validate curriculum structure and language coverage with `node scripts/validate-content.mjs`.
 

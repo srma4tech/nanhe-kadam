@@ -1,4 +1,4 @@
-﻿import { get, put, del, estimateStorage } from '../core/storage.js';
+import { get, put, del, entries, estimateStorage } from '../core/storage.js';
 import { now, setDevOffset, clearDevOffset } from '../core/clock.js';
 import { checkEnvironment } from '../core/environment.js';
 import { getState, setState } from '../core/state.js';
@@ -10,6 +10,7 @@ import { createSpeechPlayer, pickVoice, waitForVoices } from '../speech/speech.j
 import { registerLearningActivities, CHARACTERS } from '../activities/activities.js';
 import { buildLearningSummary, isMonthlyMela, selectDailyReviews } from '../revision/spaced.js';
 import { beginFamilyRecording, deleteFamilyMedia, listFamilyMedia, saveMissionPhoto } from '../family/media.js';
+import { BACKUP_STORES, createBackup, restoreBackup, validateBackup } from '../parent/data.js';
 
 const root = document.querySelector('#app');
 const ESCAPE = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -130,11 +131,12 @@ async function renderParent(message = '') {
   const reviewRecords = await get('progress', 'reviewMastery') ?? [];
   const summary = buildLearningSummary(reviewRecords);
   const dueToday = selectDailyReviews(reviewRecords).length;
-  frame('', `${parentHeader()}${message ? errorBox(message) : ''}<p class="small">Changes stay on this device. Storage used: ${meter.usage == null ? 'not available' : `${(meter.usage / 1048576).toFixed(1)} MB`}.</p><div class="list"><h2>Learning summary</h2><p class="small">Practiced this week: ${summary.practicedThisWeek}. Familiar topics: ${summary.strong}. Reviews ready: ${dueToday}, capped at six quick prompts.</p><h2>Weekly schedule</h2>${cards}<button id="save-schedule">Save schedule</button><h2>Speech</h2><button id="voice-test" class="secondary">Voice check and settings</button><h2>Family recordings and moments</h2><button id="media-open" class="secondary">Manage local family media</button><button id="change-pin" class="secondary">Change parent PIN</button><button id="reset-pin" class="quiet">Forgot PIN? Reset</button><button id="override-lock" class="quiet">Resume learning today</button><button id="storage-permission" class="quiet">Request persistent storage</button><h2>App update</h2><p class="small">${updateReady ? 'An update is ready.' : 'No update is waiting.'}</p><button id="apply-update" class="secondary" ${!updateReady || session ? 'disabled' : ''}>Apply update${session ? ' after session' : ''}</button><h2>Developer tools</h2><label class="inline"><input id="dev-mode" type="checkbox" ${dev ? 'checked' : ''}> Enable developer mode</label>${dev ? '<div class="split"><button id="skip-time" class="secondary">Add 5 minutes</button><button id="simulate-end" class="secondary">Simulate session end</button></div><button id="clear-time" class="quiet">Clear time skip</button>' : ''}</div>`);
+  frame('', `${parentHeader()}${message ? errorBox(message) : ''}<p class="small">Changes stay on this device. Storage used: ${meter.usage == null ? 'not available' : `${(meter.usage / 1048576).toFixed(1)} MB`}.</p><div class="list"><h2>Learning summary</h2><p class="small">Practiced this week: ${summary.practicedThisWeek}. Familiar topics: ${summary.strong}. Reviews ready: ${dueToday}, capped at six quick prompts.</p><button id="data-tools" class="secondary">Storage, backup, and privacy</button><h2>Weekly schedule</h2>${cards}<button id="save-schedule">Save schedule</button><h2>Speech</h2><button id="voice-test" class="secondary">Voice check and settings</button><h2>Family recordings and moments</h2><button id="media-open" class="secondary">Manage local family media</button><button id="change-pin" class="secondary">Change parent PIN</button><button id="reset-pin" class="quiet">Forgot PIN? Reset</button><button id="override-lock" class="quiet">Resume learning today</button><button id="storage-permission" class="quiet">Request persistent storage</button><h2>App update</h2><p class="small">${updateReady ? 'An update is ready.' : 'No update is waiting.'}</p><button id="apply-update" class="secondary" ${!updateReady || session ? 'disabled' : ''}>Apply update${session ? ' after session' : ''}</button><h2>Developer tools</h2><label class="inline"><input id="dev-mode" type="checkbox" ${dev ? 'checked' : ''}> Enable developer mode</label>${dev ? '<div class="split"><button id="skip-time" class="secondary">Add 5 minutes</button><button id="simulate-end" class="secondary">Simulate session end</button></div><button id="clear-time" class="quiet">Clear time skip</button>' : ''}</div>`);
   root.querySelector('#home').addEventListener('click', () => { touchParent(); renderHome(); });
   root.querySelector('#save-schedule').addEventListener('click', saveSchedule);
   root.querySelector('#voice-test').addEventListener('click', renderVoiceTest);
   root.querySelector('#media-open').addEventListener('click', renderFamilyMedia);
+  root.querySelector('#data-tools').addEventListener('click', renderDataTools);
   root.querySelector('#change-pin').addEventListener('click', renderPinChange);
   root.querySelector('#reset-pin').addEventListener('click', renderReset);
   root.querySelector('#override-lock').addEventListener('click', async () => { await overrideLock({ parentUnlocked: isParentUnlocked() }); session = await resumeSession(); renderParent('Today’s lock was lifted.'); });
@@ -182,6 +184,39 @@ async function renderFamilyMedia(message = '') {
     if (file.size > 25 * 1024 * 1024) return renderFamilyMedia('Choose a photo smaller than 25 MB.');
     try { await saveMissionPhoto(file); renderFamilyMedia('Photo resized and saved on this device.'); }
     catch (error) { logError('Mission photo could not be saved', error); renderFamilyMedia('Photo could not be saved. Please try another image.'); }
+  });
+}
+async function renderDataTools(message = '') {
+  if (!isParentUnlocked()) return renderHome();
+  const counts = {};
+  for (const store of [...BACKUP_STORES, 'recordings', 'vault']) counts[store] = (await entries(store)).length;
+  const meter = await estimateStorage();
+  const rows = Object.entries({ settings: 'Settings', schedule: 'Schedule', progress: 'Learning progress', history: 'Session history', journal: 'Mission notes', recordings: 'Family recordings', vault: 'Encrypted vault' }).map(([store, label]) => `<li>${label}: ${counts[store]} records</li>`).join('');
+  frame('Storage and privacy', `${parentHeader()}${message ? errorBox(message) : ''}<p class="small">Estimated device storage: ${meter.usage == null ? 'not available' : (meter.usage / 1048576).toFixed(1) + ' MB'} of ${meter.quota == null ? 'unknown' : (meter.quota / 1048576).toFixed(0) + ' MB'}.</p><ul class="storage-categories">${rows}</ul><p class="small">Use media controls to review and delete individual recordings or photos. Backups omit the parent PIN/hash, encrypted vault, recordings, and photos.</p><button id="media-cleanup" class="secondary">Review and clean up local media</button><button id="backup-export">Download local backup</button><form id="backup-import" class="stack"><label>Choose a Nanhe Kadam backup<input name="backup" type="file" accept="application/json,.json"></label><button type="submit">Validate and restore backup</button></form><h2>Privacy on this device</h2><p class="small">There are no accounts, analytics, advertisements, or tracking. PIN, progress, settings, recordings, and mission photos are stored locally. This app does not send family media or journal notes to a service.</p><h2>Credits</h2><p class="small">App icons and four companion illustrations are original local project artwork. No remote fonts, stock media, or third-party scripts are used.</p>`);
+  setState({ screen: 'parent' });
+  root.querySelector('#home').addEventListener('click', renderParent);
+  root.querySelector('#media-cleanup').addEventListener('click', renderFamilyMedia);
+  root.querySelector('#backup-export').addEventListener('click', async () => {
+    try {
+      const datasets = {};
+      for (const store of BACKUP_STORES) datasets[store] = await entries(store);
+      const backup = createBackup(datasets);
+      const url = URL.createObjectURL(new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' })); mediaURLs.push(url);
+      const link = document.createElement('a'); link.href = url; link.download = 'nanhe-kadam-backup.json'; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (error) { logError('Backup export failed', error); renderDataTools('The backup could not be created. Please try again.'); }
+  });
+  root.querySelector('#backup-import').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const file = new FormData(event.currentTarget).get('backup');
+    if (!file?.size) return renderDataTools('Choose a backup file first.');
+    if (file.size > 10 * 1024 * 1024) return renderDataTools('Choose a backup smaller than 10 MB.');
+    try {
+      const backup = JSON.parse(await file.text()); const errors = validateBackup(backup);
+      if (errors.length) { console.warn('[Nanhe Kadam] Backup validation details', errors); return renderDataTools('This file is not a valid Nanhe Kadam backup. No data was changed.'); }
+      if (!window.confirm('Restore validated records from this backup? Matching records will be replaced; records not in the file stay on this device.')) return;
+      const result = await restoreBackup(backup, put);
+      renderDataTools(`Backup restored. ${result.restoredRecords} records were applied.`);
+    } catch (error) { logError('Backup restore failed', error); renderDataTools('The backup could not be restored. No raw file or device error is shown.'); }
   });
 }
 async function saveSchedule() {

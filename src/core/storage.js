@@ -38,6 +38,16 @@ export const get = (store, key) => operation(store, 'readonly', (s) => s.get(key
 export const put = (store, key, value) => operation(store, 'readwrite', (s) => s.put(value, key));
 export const del = (store, key) => operation(store, 'readwrite', (s) => s.delete(key));
 export const list = (store) => operation(store, 'readonly', (s) => s.getAll());
+export async function entries(store) {
+  const db = await openDatabase();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(store, 'readonly'); const objectStore = tx.objectStore(store);
+    const keyRequest = objectStore.getAllKeys(); const valueRequest = objectStore.getAll();
+    tx.oncomplete = () => resolve(keyRequest.result.map((key, index) => ({ key, value: valueRequest.result[index] })));
+    tx.onerror = () => reject(tx.error || keyRequest.error || valueRequest.error);
+    tx.onabort = () => reject(tx.error || new Error('Storage read was cancelled.'));
+  });
+}
 export async function clearStore(store) { return operation(store, 'readwrite', (s) => s.clear()); }
 export async function clearAll() { for (const name of STORE_NAMES) await clearStore(name); }
 export async function estimateStorage() {

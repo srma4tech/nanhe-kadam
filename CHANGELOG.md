@@ -52,3 +52,10 @@
 - Added optional mission photos resized to a 1280px maximum edge before local storage.
 - Added on-device playback, photo preview, individual deletion, and local storage usage information; no media is sent remotely.
 - Added mocked recorder, MIME, microphone availability, and image downscale tests; real device checks remain pending.
+
+## Phase 7 — Parent dashboard and data tools
+
+- Added storage category counts, local usage estimate, privacy/credits details, and a media cleanup entry point.
+- Added JSON backup export/restore validation; backups omit parent PIN/hash records, encrypted vault, recordings, and photos.
+- Restore validates the full file before applying a non-destructive merge that leaves records absent from the backup untouched.
+- Added tests for secret/media exclusion, malformed backup rejection, and no-write-on-invalid restore.
